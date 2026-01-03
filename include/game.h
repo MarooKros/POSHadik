@@ -40,7 +40,10 @@ void init_game(Game *game, int width, int height, bool has_obstacles, int game_m
 void update_game(Game *game);
 bool is_collision(Game *game, Snake *snake);
 void generate_fruit(Game *game);
+void generate_obstacles(Game *game);
 void move_snake(Snake *snake);
 void change_direction(Snake *snake, int new_direction);
+void add_snake(Game *game, int start_x, int start_y);
+void remove_snake(Game *game, int index);
 
 #endif // GAME_H
