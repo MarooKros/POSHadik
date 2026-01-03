@@ -1,0 +1,62 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "build server",
+            "type": "shell",
+            "command": "cl",
+            "args": [
+                "/Iinclude",
+                "/DWIN32",
+                "/D_WINDOWS",
+                "src/server.c",
+                "src/game.c",
+                "src/ipc.c",
+                "ws2_32.lib",
+                "/link",
+                "/out:server.exe"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "silent",
+                "focus": false,
+                "panel": "shared"
+            }
+        },
+        {
+            "label": "build client",
+            "type": "shell",
+            "command": "cl",
+            "args": [
+                "/Iinclude",
+                "/DWIN32",
+                "/D_WINDOWS",
+                "src/client.c",
+                "src/game.c",
+                "src/ipc.c",
+                "ws2_32.lib",
+                "/link",
+                "/out:client.exe"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "silent",
+                "focus": false,
+                "panel": "shared"
+            }
+        },
+        {
+            "label": "build all",
+            "dependsOn": ["build server", "build client"],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "silent",
+                "focus": false,
+                "panel": "shared"
+            }
+        }
+    ]
+}
