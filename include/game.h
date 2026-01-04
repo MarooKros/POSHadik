@@ -3,7 +3,6 @@
 
 #include <stdbool.h>
 
-// Define game structures
 typedef struct {
     int x, y;
 } Position;
@@ -35,7 +34,6 @@ typedef struct {
     int time_limit; // in seconds
 } Game;
 
-// Function prototypes
 void init_game(Game *game, int width, int height, bool has_obstacles, int game_mode, int time_limit);
 void update_game(Game *game);
 bool is_collision(Game *game, Snake *snake);
@@ -46,4 +44,4 @@ void change_direction(Snake *snake, int new_direction);
 void add_snake(Game *game, int start_x, int start_y);
 void remove_snake(Game *game, int index);
 
-#endif // GAME_H
+#endif 
