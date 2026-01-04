@@ -1,0 +1,18 @@
+#ifndef MESSAGES_H
+#define MESSAGES_H
+
+#define MSG_JOIN "JOIN"
+#define MSG_LEAVE "LEAVE"
+#define MSG_MOVE_UP "MOVE_UP"
+#define MSG_MOVE_DOWN "MOVE_DOWN"
+#define MSG_MOVE_LEFT "MOVE_LEFT"
+#define MSG_MOVE_RIGHT "MOVE_RIGHT"
+#define MSG_PAUSE "PAUSE"
+#define MSG_RESUME "RESUME"
+#define MSG_GAME_STATE "GAME_STATE"
+
+#define RSP_OK "OK"
+#define RSP_ERROR "ERROR"
+#define RSP_FULL "FULL"
+
+#endif

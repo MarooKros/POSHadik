@@ -3,6 +3,7 @@
 
 #include "game.h"
 #include "ipc.h"
+#include "messages.h"
 
 typedef struct {
     int client_socket;
@@ -16,7 +17,6 @@ typedef struct {
     int max_clients;
 } GameSession;
 
-// Server functions
 void run_server(int port);
 
-#endif // SERVER_H
+#endif 
