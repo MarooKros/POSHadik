@@ -60,16 +60,15 @@ void create_new_game_menu(int sock) {
     sprintf(msg, "%s %d %d %d %d %d", MSG_NEW_GAME, width, height, mode, time_limit, obstacles);
     send_message(sock, msg);
     char *response = receive_message(sock);
-    if (response && strcmp(response, RSP_OK) == 0) {
-        printf("New game created. You are player 1.\n");
-    } else {
-        printf("Failed to create new game\n");
-    }
+    bool game_created = (response && strcmp(response, RSP_OK) == 0);
     if (response) free(response);
     send_message(sock, MSG_JOIN);
     char *join_response = receive_message(sock);
-    if (join_response && strcmp(join_response, RSP_OK) == 0) {
+    if (game_created && join_response && strcmp(join_response, RSP_OK) == 0) {
+        printf("New game created. You are player 1.\n");
         printf("Joined game. Use WASD to move, P to pause/resume, Q to quit.\n");
+    } else if (!game_created) {
+        printf("Failed to create new game\n");
     } else {
         printf("Failed to join game\n");
     }

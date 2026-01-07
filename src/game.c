@@ -63,8 +63,11 @@ void update_game(Game *game) {
             Position head = game->snakes[i].body[0];
             for (int j = 0; j < game->num_fruits; j++) {
                 if (head.x == game->fruits[j].pos.x && head.y == game->fruits[j].pos.y) {
+                    int old_len = game->snakes[i].length;
+                    Position tail = game->snakes[i].body[old_len - 1];
                     game->snakes[i].length++;
                     game->snakes[i].body = realloc(game->snakes[i].body, game->snakes[i].length * sizeof(Position));
+                    game->snakes[i].body[game->snakes[i].length - 1] = tail;
                     for (int k = j; k < game->num_fruits - 1; k++) {
                         game->fruits[k] = game->fruits[k + 1];
                     }
