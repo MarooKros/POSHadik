@@ -31,7 +31,10 @@ typedef struct {
     int num_obstacles;
     bool has_obstacles;
     int game_mode; // 0: standard, 1: timed
-    int time_limit; // in seconds
+    int time_limit;
+    int start_time;
+    int scores[10];
+    bool game_over;
 } Game;
 
 void init_game(Game *game, int width, int height, bool has_obstacles, int game_mode, int time_limit);
@@ -43,5 +46,7 @@ void move_snake(Snake *snake);
 void change_direction(Snake *snake, int new_direction);
 void add_snake(Game *game, int start_x, int start_y);
 void remove_snake(Game *game, int index);
+char* serialize_game_state(Game *game);
+void load_obstacles_from_file(Game *game, const char *filename);
 
 #endif 

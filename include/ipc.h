@@ -5,7 +5,6 @@
 
 typedef struct {
     int socket_fd;
-    // TODO: Add more fields if necessary
 } IPCConnection;
 
 int init_ipc_server(int port); // returns server socket fd or -1 on error
