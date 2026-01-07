@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <time.h>
+#include <string.h>
 
 void init_game(Game *game, int width, int height, bool has_obstacles, int game_mode, int time_limit) {
     game->width = width;
@@ -15,12 +16,19 @@ void init_game(Game *game, int width, int height, bool has_obstacles, int game_m
     game->fruits = NULL;
     game->num_obstacles = 0;
     game->obstacles = NULL;
+    game->start_time = time(NULL);
+    game->game_over = false;
+    memset(game->scores, 0, sizeof(game->scores));
+    srand(time(NULL));
+    if (has_obstacles) {
+        generate_obstacles(game);
+    }
 }
 
 void generate_obstacles(Game *game) {
     if (!game->has_obstacles) return;
-    // Simple random obstacles, ensure path exists
-    int num_obstacles = (game->width * game->height) / 10; // 10% obstacles
+    int num_obstacles = (game->width * game->height) / 10;
+    if (num_obstacles > 100) num_obstacles = 100;
     game->obstacles = malloc(num_obstacles * sizeof(Obstacle));
     for (int i = 0; i < num_obstacles; i++) {
         Position pos;
@@ -30,7 +38,6 @@ void generate_obstacles(Game *game) {
             pos.x = rand() % game->width;
             pos.y = rand() % game->height;
             valid = true;
-            // Avoid edges or something, but for simplicity, just random
             attempts++;
         }
         if (valid) {
@@ -41,49 +48,49 @@ void generate_obstacles(Game *game) {
 }
 
 void update_game(Game *game) {
-    // Update each snake
+    if (game->game_over) return;
+    if (game->game_mode == 1 && time(NULL) - game->start_time >= game->time_limit) {
+        game->game_over = true;
+        return;
+    }
     for (int i = 0; i < game->num_snakes; i++) {
         move_snake(&game->snakes[i]);
         if (is_collision(game, &game->snakes[i])) {
-            // Handle collision - remove snake or mark as dead
-            // For now, just print
-            printf("Snake %d collided\n", i);
+            game->scores[i] = game->snakes[i].length - 1;
+            remove_snake(game, i);
+            i--;
         } else {
-            // Check if ate fruit
             Position head = game->snakes[i].body[0];
             for (int j = 0; j < game->num_fruits; j++) {
                 if (head.x == game->fruits[j].pos.x && head.y == game->fruits[j].pos.y) {
-                    // Grow snake
                     game->snakes[i].length++;
                     game->snakes[i].body = realloc(game->snakes[i].body, game->snakes[i].length * sizeof(Position));
-                    // Remove fruit
                     for (int k = j; k < game->num_fruits - 1; k++) {
                         game->fruits[k] = game->fruits[k + 1];
                     }
                     game->num_fruits--;
                     game->fruits = realloc(game->fruits, game->num_fruits * sizeof(Fruit));
-                    // Generate new fruit
                     generate_fruit(game);
                     break;
                 }
             }
         }
     }
+    if (game->num_snakes == 0 || (game->game_mode == 0 && time(NULL) - game->start_time > 10 && game->num_snakes < 1)) {
+        game->game_over = true;
+    }
 }
 
 bool is_collision(Game *game, Snake *snake) {
     Position head = snake->body[0];
-    // Check walls
     if (head.x < 0 || head.x >= game->width || head.y < 0 || head.y >= game->height) {
         return true;
     }
-    // Check self collision
     for (int i = 1; i < snake->length; i++) {
         if (head.x == snake->body[i].x && head.y == snake->body[i].y) {
             return true;
         }
     }
-    // Check other snakes and obstacles
     for (int i = 0; i < game->num_snakes; i++) {
         if (&game->snakes[i] != snake) {
             for (int j = 0; j < game->snakes[i].length; j++) {
@@ -102,7 +109,7 @@ bool is_collision(Game *game, Snake *snake) {
 }
 
 void generate_fruit(Game *game) {
-    if (game->num_fruits >= game->num_snakes) return; // Max fruits = num snakes
+    if (game->num_fruits >= game->num_snakes) return;
     Position pos;
     bool valid = false;
     int attempts = 0;
@@ -110,7 +117,6 @@ void generate_fruit(Game *game) {
         pos.x = rand() % game->width;
         pos.y = rand() % game->height;
         valid = true;
-        // Check if position is free
         for (int i = 0; i < game->num_snakes; i++) {
             for (int j = 0; j < game->snakes[i].length; j++) {
                 if (game->snakes[i].body[j].x == pos.x && game->snakes[i].body[j].y == pos.y) {
@@ -146,21 +152,18 @@ void generate_fruit(Game *game) {
 }
 
 void move_snake(Snake *snake) {
-    // Move body
     for (int i = snake->length - 1; i > 0; i--) {
         snake->body[i] = snake->body[i-1];
     }
-    // Move head
     switch (snake->direction) {
-        case 0: snake->body[0].y--; break; // up
-        case 1: snake->body[0].x++; break; // right
-        case 2: snake->body[0].y++; break; // down
-        case 3: snake->body[0].x--; break; // left
+        case 0: snake->body[0].y--; break;
+        case 1: snake->body[0].x++; break;
+        case 2: snake->body[0].y++; break;
+        case 3: snake->body[0].x--; break;
     }
 }
 
 void change_direction(Snake *snake, int new_direction) {
-    // Prevent reverse direction
     if ((snake->direction + 2) % 4 != new_direction) {
         snake->direction = new_direction;
     }
@@ -175,7 +178,7 @@ void add_snake(Game *game, int start_x, int start_y) {
     snake->body[0].y = start_y;
     snake->direction = 1; // right
     game->num_snakes++;
-    generate_fruit(game); // Ensure fruits = snakes
+    generate_fruit(game);
 }
 
 void remove_snake(Game *game, int index) {
@@ -186,9 +189,56 @@ void remove_snake(Game *game, int index) {
     }
     game->num_snakes--;
     game->snakes = realloc(game->snakes, game->num_snakes * sizeof(Snake));
-    // Remove extra fruit if any
     if (game->num_fruits > game->num_snakes) {
         game->num_fruits--;
         game->fruits = realloc(game->fruits, game->num_fruits * sizeof(Fruit));
     }
+}
+
+char* serialize_game_state(Game *game) {
+    char buffer[131072];
+    sprintf(buffer, "%d,%d;", game->width, game->height);
+    for (int i = 0; i < game->num_snakes; i++) {
+        Snake *s = &game->snakes[i];
+        sprintf(buffer + strlen(buffer), "s%d,%d", s->length, s->direction);
+        for (int j = 0; j < s->length; j++) {
+            sprintf(buffer + strlen(buffer), ",%d,%d", s->body[j].x, s->body[j].y);
+        }
+        sprintf(buffer + strlen(buffer), ";");
+    }
+    for (int i = 0; i < game->num_fruits; i++) {
+        sprintf(buffer + strlen(buffer), "f%d,%d;", game->fruits[i].pos.x, game->fruits[i].pos.y);
+    }
+    for (int i = 0; i < game->num_obstacles; i++) {
+        sprintf(buffer + strlen(buffer), "o%d,%d;", game->obstacles[i].pos.x, game->obstacles[i].pos.y);
+    }
+    sprintf(buffer + strlen(buffer), "sc");
+    for (int i = 0; i < 10; i++) {
+        sprintf(buffer + strlen(buffer), ",%d", game->scores[i]);
+    }
+    sprintf(buffer + strlen(buffer), ";");
+    sprintf(buffer + strlen(buffer), "go%d;", game->game_over ? 1 : 0);
+#ifdef _WIN32
+    return _strdup(buffer);
+#else
+    return strdup(buffer);
+#endif
+}
+
+void load_obstacles_from_file(Game *game, const char *filename) {
+    FILE *file = fopen(filename, "r");
+    if (!file) {
+        perror("fopen");
+        return;
+    }
+    int x, y;
+    while (fscanf(file, "%d %d", &x, &y) == 2) {
+        if (game->num_obstacles < 100) {
+            game->obstacles = realloc(game->obstacles, (game->num_obstacles + 1) * sizeof(Obstacle));
+            game->obstacles[game->num_obstacles].pos.x = x;
+            game->obstacles[game->num_obstacles].pos.y = y;
+            game->num_obstacles++;
+        }
+    }
+    fclose(file);
 }

@@ -10,6 +10,7 @@
 #define MSG_PAUSE "PAUSE"
 #define MSG_RESUME "RESUME"
 #define MSG_GAME_STATE "GAME_STATE"
+#define MSG_NEW_GAME "NEW_GAME"
 
 #define RSP_OK "OK"
 #define RSP_ERROR "ERROR"

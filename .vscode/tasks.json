@@ -4,17 +4,16 @@
         {
             "label": "build server",
             "type": "shell",
-            "command": "cl",
+            "command": "wsl",
             "args": [
-                "/Iinclude",
-                "/DWIN32",
-                "/D_WINDOWS",
+                "gcc",
+                "-Iinclude",
                 "src/server.c",
                 "src/game.c",
                 "src/ipc.c",
-                "ws2_32.lib",
-                "/link",
-                "/out:server.exe"
+                "-o",
+                "server",
+                "-pthread"
             ],
             "group": "build",
             "presentation": {
@@ -27,17 +26,15 @@
         {
             "label": "build client",
             "type": "shell",
-            "command": "cl",
+            "command": "wsl",
             "args": [
-                "/Iinclude",
-                "/DWIN32",
-                "/D_WINDOWS",
+                "gcc",
+                "-Iinclude",
                 "src/client.c",
                 "src/game.c",
                 "src/ipc.c",
-                "ws2_32.lib",
-                "/link",
-                "/out:client.exe"
+                "-o",
+                "client"
             ],
             "group": "build",
             "presentation": {
@@ -57,6 +54,42 @@
                 "focus": false,
                 "panel": "shared"
             }
-        }
+        },
+        {
+            "label": "run server",
+            "type": "shell",
+            "command": "wsl",
+            "args": ["./server", "8080"],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": true,
+                "panel": "shared"
+            }
+        },
+        {
+            "label": "build gui client",
+            "type": "shell",
+            "command": "cl",
+            "args": [
+                "/Iinclude",
+                "/DWIN32",
+                "/D_WINDOWS",
+                "gui_client.c",
+                "ws2_32.lib",
+                "user32.lib",
+                "gdi32.lib",
+                "/link",
+                "/out:gui_client.exe"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "silent",
+                "focus": false,
+                "panel": "shared"
+            }
+        },
     ]
 }

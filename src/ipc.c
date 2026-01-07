@@ -2,52 +2,75 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#ifdef _WIN32
 #include <winsock2.h>
 #include <ws2tcpip.h>
-
 #pragma comment(lib, "ws2_32.lib")
+#else
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <unistd.h>
+#endif
 
 int init_ipc_server(int port) {
+#ifdef _WIN32
     WSADATA wsaData;
     if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
         fprintf(stderr, "WSAStartup failed\n");
         return -1;
     }
-    SOCKET server_fd = socket(AF_INET, SOCK_STREAM, 0);
-    if (server_fd == INVALID_SOCKET) {
+#endif
+    int server_fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (server_fd < 0) {
         perror("socket");
+#ifdef _WIN32
         WSACleanup();
+#endif
         return -1;
     }
     struct sockaddr_in address;
     address.sin_family = AF_INET;
     address.sin_addr.s_addr = INADDR_ANY;
     address.sin_port = htons(port);
-    if (bind(server_fd, (struct sockaddr*)&address, sizeof(address)) == SOCKET_ERROR) {
+    if (bind(server_fd, (struct sockaddr*)&address, sizeof(address)) < 0) {
         perror("bind");
+#ifdef _WIN32
         closesocket(server_fd);
         WSACleanup();
+#else
+        close(server_fd);
+#endif
         return -1;
     }
-    if (listen(server_fd, 5) == SOCKET_ERROR) {
+    if (listen(server_fd, 5) < 0) {
         perror("listen");
+#ifdef _WIN32
         closesocket(server_fd);
         WSACleanup();
+#else
+        close(server_fd);
+#endif
         return -1;
     }
-    return (int)server_fd;
+    return server_fd;
 }
 
 int init_ipc_client(const char *server_ip, int port) {
+#ifdef _WIN32
     WSADATA wsaData;
     if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
         fprintf(stderr, "WSAStartup failed\n");
         return -1;
     }
-    SOCKET sock = socket(AF_INET, SOCK_STREAM, 0);
-    if (sock == INVALID_SOCKET) {
+#endif
+    int sock = socket(AF_INET, SOCK_STREAM, 0);
+    if (sock < 0) {
         perror("socket");
+#ifdef _WIN32
         WSACleanup();
+#endif
         return -1;
     }
     struct sockaddr_in serv_addr;
@@ -55,17 +78,25 @@ int init_ipc_client(const char *server_ip, int port) {
     serv_addr.sin_port = htons(port);
     if (inet_pton(AF_INET, server_ip, &serv_addr.sin_addr) <= 0) {
         perror("inet_pton");
+#ifdef _WIN32
         closesocket(sock);
         WSACleanup();
+#else
+        close(sock);
+#endif
         return -1;
     }
-    if (connect(sock, (struct sockaddr*)&serv_addr, sizeof(serv_addr)) == SOCKET_ERROR) {
+    if (connect(sock, (struct sockaddr*)&serv_addr, sizeof(serv_addr)) < 0) {
         perror("connect");
+#ifdef _WIN32
         closesocket(sock);
         WSACleanup();
+#else
+        close(sock);
+#endif
         return -1;
     }
-    return (int)sock;
+    return sock;
 }
 
 void send_message(int socket, const char *message) {
@@ -77,12 +108,20 @@ char* receive_message(int socket) {
     int valread = recv(socket, buffer, 1024, 0);
     if (valread > 0) {
         buffer[valread] = '\0';
+#ifdef _WIN32
         return _strdup(buffer);
+#else
+        return strdup(buffer);
+#endif
     }
     return NULL;
 }
 
 void close_ipc_connection(int socket) {
+#ifdef _WIN32
     closesocket(socket);
     WSACleanup();
+#else
+    close(socket);
+#endif
 }
