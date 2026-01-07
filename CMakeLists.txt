@@ -8,10 +8,12 @@ include_directories(include)
 
 add_executable(server src/server.c src/game.c src/ipc.c)
 add_executable(client src/client.c src/game.c src/ipc.c)
+add_executable(gui_client gui_client.c src/ipc.c)
 
 if(WIN32)
     target_link_libraries(server ws2_32)
     target_link_libraries(client ws2_32)
+    target_link_libraries(gui_client ws2_32 user32 gdi32)
 else()
     target_link_libraries(server pthread)
     target_link_libraries(client pthread)
