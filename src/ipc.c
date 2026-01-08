@@ -3,31 +3,16 @@
 #include <stdlib.h>
 #include <string.h>
 
-#ifdef _WIN32
-#include <winsock2.h>
-#include <ws2tcpip.h>
-#pragma comment(lib, "ws2_32.lib")
-#else
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <unistd.h>
-#endif
 
+// Vytvori TCP server socket na danom porte - bind, listen, vratit file descriptor
 int init_ipc_server(int port) {
-#ifdef _WIN32
-    WSADATA wsaData;
-    if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
-        fprintf(stderr, "WSAStartup failed\n");
-        return -1;
-    }
-#endif
     int server_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (server_fd < 0) {
         perror("socket");
-#ifdef _WIN32
-        WSACleanup();
-#endif
         return -1;
     }
     struct sockaddr_in address;
@@ -36,41 +21,22 @@ int init_ipc_server(int port) {
     address.sin_port = htons(port);
     if (bind(server_fd, (struct sockaddr*)&address, sizeof(address)) < 0) {
         perror("bind");
-#ifdef _WIN32
-        closesocket(server_fd);
-        WSACleanup();
-#else
         close(server_fd);
-#endif
         return -1;
     }
     if (listen(server_fd, 5) < 0) {
         perror("listen");
-#ifdef _WIN32
-        closesocket(server_fd);
-        WSACleanup();
-#else
         close(server_fd);
-#endif
         return -1;
     }
     return server_fd;
 }
 
+// Pripoji sa na server pomocou TCP socketu - vrati socket alebo -1 pri chybe
 int init_ipc_client(const char *server_ip, int port) {
-#ifdef _WIN32
-    WSADATA wsaData;
-    if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
-        fprintf(stderr, "WSAStartup failed\n");
-        return -1;
-    }
-#endif
     int sock = socket(AF_INET, SOCK_STREAM, 0);
     if (sock < 0) {
         perror("socket");
-#ifdef _WIN32
-        WSACleanup();
-#endif
         return -1;
     }
     struct sockaddr_in serv_addr;
@@ -78,50 +44,34 @@ int init_ipc_client(const char *server_ip, int port) {
     serv_addr.sin_port = htons(port);
     if (inet_pton(AF_INET, server_ip, &serv_addr.sin_addr) <= 0) {
         perror("inet_pton");
-#ifdef _WIN32
-        closesocket(sock);
-        WSACleanup();
-#else
         close(sock);
-#endif
         return -1;
     }
     if (connect(sock, (struct sockaddr*)&serv_addr, sizeof(serv_addr)) < 0) {
         perror("connect");
-#ifdef _WIN32
-        closesocket(sock);
-        WSACleanup();
-#else
         close(sock);
-#endif
         return -1;
     }
     return sock;
 }
 
+// Posle textovu spravu cez socket
 void send_message(int socket, const char *message) {
     send(socket, message, strlen(message), 0);
 }
 
+// Prijme spravu zo socketu (do 1024 bajtov) - vrati duplikat retazca alebo NULL
 char* receive_message(int socket) {
     char buffer[1024];
     int valread = recv(socket, buffer, 1024, 0);
     if (valread > 0) {
         buffer[valread] = '\0';
-#ifdef _WIN32
-        return _strdup(buffer);
-#else
         return strdup(buffer);
-#endif
     }
     return NULL;
 }
 
+// Zatvori socket spojenie
 void close_ipc_connection(int socket) {
-#ifdef _WIN32
-    closesocket(socket);
-    WSACleanup();
-#else
     close(socket);
-#endif
 }

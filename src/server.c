@@ -2,18 +2,16 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-#ifdef _WIN32
-#include <windows.h>
-#else
+#include <time.h>
+#include <stdint.h>
 #include <pthread.h>
 #include <unistd.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
-#endif
 
 GameSession session;
 
+// Spracuje spravu od klienta - NEW_GAME, JOIN, LEAVE, PAUSE, RESUME, MOVE prikazy
 void process_message(int client_index, const char *message) {
     Client *client = &session.clients[client_index];
     char cmd[256];
@@ -52,6 +50,7 @@ void process_message(int client_index, const char *message) {
         if (client->snake_index == -1 && session.game.num_snakes < session.max_clients) {
             add_snake(&session.game, rand() % session.game.width, rand() % session.game.height);
             client->snake_index = session.game.num_snakes - 1;
+            session.game.freeze_until = (int)time(NULL) + 3; // stop movement for 3s after join
             send_message(client->client_socket, RSP_OK);
         } else {
             send_message(client->client_socket, RSP_FULL);
@@ -63,8 +62,14 @@ void process_message(int client_index, const char *message) {
         }
         send_message(client->client_socket, RSP_OK);
     } else if (strcmp(message, MSG_PAUSE) == 0) {
+        if (client->snake_index != -1) {
+            session.game.paused = 1;
+        }
         send_message(client->client_socket, RSP_OK);
     } else if (strcmp(message, MSG_RESUME) == 0) {
+        if (client->snake_index != -1) {
+            session.game.paused = 0;
+        }
         send_message(client->client_socket, RSP_OK);
     } else if (client->snake_index != -1) {
         Snake *snake = &session.game.snakes[client->snake_index];
@@ -83,12 +88,9 @@ void process_message(int client_index, const char *message) {
     }
 }
 
-#ifdef _WIN32
-DWORD WINAPI handle_client(LPVOID lpParam) {
-#else
+// Vlakno pre obsluhu jedneho klienta - prijima spravy, vola process_message, cistenie po odpojeni
 void* handle_client(void* lpParam) {
-#endif
-    int client_socket = (int)lpParam;
+    int client_socket = (int)(intptr_t)lpParam;
     int client_index = -1;
     for (int i = 0; i < session.num_clients; i++) {
         if (session.clients[i].client_socket == client_socket) {
@@ -97,11 +99,7 @@ void* handle_client(void* lpParam) {
         }
     }
     if (client_index == -1) 
-#ifdef _WIN32
-        return 0;
-#else
         return NULL;
-#endif
 
     while (1) {
         char *msg = receive_message(client_socket);
@@ -113,24 +111,13 @@ void* handle_client(void* lpParam) {
         remove_snake(&session.game, session.clients[client_index].snake_index);
     }
     close_ipc_connection(client_socket);
-#ifdef _WIN32
-    return 0;
-#else
     return NULL;
-#endif
 }
 
-#ifdef _WIN32
-DWORD WINAPI game_update_thread(LPVOID lpParam) {
-#else
+// Hlavne herné vlakno - kazde 150ms aktualizuje hru a posiela stav vsetkym pripojenym klientom
 void* game_update_thread(void* lpParam) {
-#endif
     while (1) {
-#ifdef _WIN32
-        Sleep(500);
-#else
-        usleep(500000);
-#endif
+    usleep(150000);
         update_game(&session.game);
         char *state = serialize_game_state(&session.game);
         for (int i = 0; i < session.num_clients; i++) {
@@ -141,26 +128,17 @@ void* game_update_thread(void* lpParam) {
         }
         free(state);
     }
-#ifdef _WIN32
-    return 0;
-#else
     return NULL;
-#endif
 }
 
+// Spusti server na danom porte - inicializuje hru, update vlakno, akceptuje pripojenia klientov
 void run_server(int port) {
     session.num_clients = 0;
     session.max_clients = 10;
     session.clients = malloc(session.max_clients * sizeof(Client));
     init_game(&session.game, 20, 20, false, 0, 0);
-    generate_obstacles(&session.game);
-#ifdef _WIN32
-    HANDLE update_thread = CreateThread(NULL, 0, game_update_thread, NULL, 0, NULL);
-    if (update_thread) CloseHandle(update_thread);
-#else
     pthread_t update_thread;
     pthread_create(&update_thread, NULL, game_update_thread, NULL);
-#endif
 
     int server_fd = init_ipc_server(port);
     if (server_fd == -1) {
@@ -182,13 +160,8 @@ void run_server(int port) {
             session.clients[session.num_clients].client_socket = client_socket;
             session.clients[session.num_clients].snake_index = -1;
             session.num_clients++;
-#ifdef _WIN32
-            HANDLE thread = CreateThread(NULL, 0, handle_client, (LPVOID)client_socket, 0, NULL);
-            if (thread) CloseHandle(thread);
-#else
             pthread_t thread;
-            pthread_create(&thread, NULL, handle_client, (void*)client_socket);
-#endif
+            pthread_create(&thread, NULL, handle_client, (void*)(intptr_t)client_socket);
         } else {
             close_ipc_connection(client_socket);
         }
@@ -197,6 +170,7 @@ void run_server(int port) {
     free(session.clients);
 }
 
+// Hlavny vstupny bod servera - nacita port z argumentov a spusti server
 int main(int argc, char *argv[]) {
     int port = 8080;
     if (argc > 1) {
