@@ -10,7 +10,8 @@ typedef struct {
 typedef struct {
     Position *body;
     int length;
-    int direction; // 0: up, 1: right, 2: down, 3: left
+    int direction; // 0 up, 1 right, 2 down, 3 left
+    int sleep_until; // timestamp when snake can move again
 } Snake;
 
 typedef struct {
@@ -30,11 +31,14 @@ typedef struct {
     Obstacle *obstacles;
     int num_obstacles;
     bool has_obstacles;
-    int game_mode; // 0: standard, 1: timed
-    int time_limit;
-    int start_time;
+    int game_mode; // 0 standard, 1 timed
+    int time_limit; // seconds for timed mode
+    int start_time; // game start timestamp
+    int empty_since; // when the last snake disappeared (standard mode)
+    int freeze_until; // global freeze (e.g., 3s after join)
     int scores[10];
     bool game_over;
+    int paused; 
 } Game;
 
 void init_game(Game *game, int width, int height, bool has_obstacles, int game_mode, int time_limit);

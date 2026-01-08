@@ -1,3 +1,4 @@
+/* Clean implementation with modes, obstacles, freeze, and serialization */
 #include "game.h"
 #include <stdlib.h>
 #include <stdio.h>
@@ -10,84 +11,159 @@ void init_game(Game *game, int width, int height, bool has_obstacles, int game_m
     game->has_obstacles = has_obstacles;
     game->game_mode = game_mode;
     game->time_limit = time_limit;
+    game->start_time = (int)time(NULL);
+    game->empty_since = 0;
+    game->freeze_until = 0;
+
     game->num_snakes = 0;
     game->snakes = NULL;
     game->num_fruits = 0;
     game->fruits = NULL;
     game->num_obstacles = 0;
     game->obstacles = NULL;
-    game->start_time = time(NULL);
     game->game_over = false;
+    game->paused = 0;
     memset(game->scores, 0, sizeof(game->scores));
-    srand(time(NULL));
+    srand((unsigned)time(NULL));
+
     if (has_obstacles) {
         generate_obstacles(game);
     }
 }
 
+// Generuje nahodne prekazky na hracej ploche - 10% plochy, bez duplicit
 void generate_obstacles(Game *game) {
     if (!game->has_obstacles) return;
-    int num_obstacles = (game->width * game->height) / 10;
-    if (num_obstacles > 100) num_obstacles = 100;
-    game->obstacles = malloc(num_obstacles * sizeof(Obstacle));
-    for (int i = 0; i < num_obstacles; i++) {
+    int max_obs = (game->width * game->height) / 10;
+    if (max_obs < 1) max_obs = 1;
+    if (max_obs > 100) max_obs = 100;
+    game->obstacles = malloc(max_obs * sizeof(Obstacle));
+    game->num_obstacles = 0;
+
+    int attempts = 0;
+    while (game->num_obstacles < max_obs && attempts < max_obs * 20) {
         Position pos;
-        bool valid = false;
-        int attempts = 0;
-        while (!valid && attempts < 100) {
-            pos.x = rand() % game->width;
-            pos.y = rand() % game->height;
-            valid = true;
-            attempts++;
+        pos.x = rand() % game->width;
+        pos.y = rand() % game->height;
+        int dup = 0;
+        for (int i = 0; i < game->num_obstacles; i++) {
+            if (game->obstacles[i].pos.x == pos.x && game->obstacles[i].pos.y == pos.y) {
+                dup = 1;
+                break;
+            }
         }
-        if (valid) {
-            game->obstacles[i].pos = pos;
+        if (!dup) {
+            game->obstacles[game->num_obstacles].pos = pos;
             game->num_obstacles++;
         }
+        attempts++;
     }
 }
 
+// Nacita prekazky zo suboru (kazdy riadok obsahuje x y suradnice)
+void load_obstacles_from_file(Game *game, const char *filename) {
+    FILE *f = fopen(filename, "r");
+    if (!f) return;
+    free(game->obstacles);
+    game->obstacles = NULL;
+    game->num_obstacles = 0;
+    Obstacle *tmp = NULL;
+    int count = 0;
+    int x, y;
+    while (fscanf(f, "%d %d", &x, &y) == 2) {
+        tmp = realloc(tmp, (count + 1) * sizeof(Obstacle));
+        tmp[count].pos.x = x;
+        tmp[count].pos.y = y;
+        count++;
+    }
+    fclose(f);
+    game->obstacles = tmp;
+    game->num_obstacles = count;
+    game->has_obstacles = (count > 0);
+}
+
+// Aktualizuje stav hry - pohyb hadov, detekcia kolizii, ovocie, casomiera, freeze, koniec hry
 void update_game(Game *game) {
     if (game->game_over) return;
-    if (game->game_mode == 1 && time(NULL) - game->start_time >= game->time_limit) {
-        game->game_over = true;
+    if (game->paused) return;
+
+    int now = (int)time(NULL);
+
+    if (game->game_mode == 1 && game->time_limit > 0) {
+        if (now - game->start_time >= game->time_limit) {
+            game->game_over = true;
+            return;
+        }
+    }
+
+    if (game->freeze_until > now) {
         return;
     }
+
     for (int i = 0; i < game->num_snakes; i++) {
-        move_snake(&game->snakes[i]);
-        if (is_collision(game, &game->snakes[i])) {
-            game->scores[i] = game->snakes[i].length - 1;
+        Snake *s = &game->snakes[i];
+        if (s->sleep_until > now) {
+            continue;
+        }
+
+        Position tail_before = s->body[s->length - 1];
+        move_snake(s);
+
+        if (!game->has_obstacles) {
+            if (s->body[0].x < 0) s->body[0].x = game->width - 1;
+            else if (s->body[0].x >= game->width) s->body[0].x = 0;
+            if (s->body[0].y < 0) s->body[0].y = game->height - 1;
+            else if (s->body[0].y >= game->height) s->body[0].y = 0;
+        }
+
+        if (is_collision(game, s)) {
+            game->scores[i] = s->length - 1;
             remove_snake(game, i);
             i--;
-        } else {
-            Position head = game->snakes[i].body[0];
-            for (int j = 0; j < game->num_fruits; j++) {
-                if (head.x == game->fruits[j].pos.x && head.y == game->fruits[j].pos.y) {
-                    int old_len = game->snakes[i].length;
-                    Position tail = game->snakes[i].body[old_len - 1];
-                    game->snakes[i].length++;
-                    game->snakes[i].body = realloc(game->snakes[i].body, game->snakes[i].length * sizeof(Position));
-                    game->snakes[i].body[game->snakes[i].length - 1] = tail;
-                    for (int k = j; k < game->num_fruits - 1; k++) {
-                        game->fruits[k] = game->fruits[k + 1];
-                    }
-                    game->num_fruits--;
-                    game->fruits = realloc(game->fruits, game->num_fruits * sizeof(Fruit));
-                    generate_fruit(game);
-                    break;
+            continue;
+        }
+
+        Position head = s->body[0];
+        for (int j = 0; j < game->num_fruits; j++) {
+            if (head.x == game->fruits[j].pos.x && head.y == game->fruits[j].pos.y) {
+                s->length++;
+                s->body = realloc(s->body, s->length * sizeof(Position));
+                s->body[s->length - 1] = tail_before;
+                game->scores[i] = s->length - 1;
+                for (int k = j; k < game->num_fruits - 1; k++) {
+                    game->fruits[k] = game->fruits[k + 1];
                 }
+                game->num_fruits--;
+                if (game->num_fruits > 0) {
+                    game->fruits = realloc(game->fruits, game->num_fruits * sizeof(Fruit));
+                } else {
+                    free(game->fruits);
+                    game->fruits = NULL;
+                }
+                generate_fruit(game);
+                break;
             }
         }
     }
-    if (game->num_snakes == 0 || (game->game_mode == 0 && time(NULL) - game->start_time > 10 && game->num_snakes < 1)) {
-        game->game_over = true;
+
+    if (game->num_snakes == 0) {
+        if (game->empty_since == 0) {
+            game->empty_since = now;
+        } else if (game->game_mode == 0 && now - game->empty_since >= 10) {
+            game->game_over = true;
+        }
+    } else {
+        game->empty_since = 0;
     }
 }
 
+// Kontroluje ci had narazil do seba, ineho hada, prekazky alebo hranice (pri mod s prekazkami)
 bool is_collision(Game *game, Snake *snake) {
     Position head = snake->body[0];
-    if (head.x < 0 || head.x >= game->width || head.y < 0 || head.y >= game->height) {
-        return true;
+    if (game->has_obstacles) {
+        if (head.x < 0 || head.x >= game->width || head.y < 0 || head.y >= game->height) {
+            return true;
+        }
     }
     for (int i = 1; i < snake->length; i++) {
         if (head.x == snake->body[i].x && head.y == snake->body[i].y) {
@@ -111,52 +187,46 @@ bool is_collision(Game *game, Snake *snake) {
     return false;
 }
 
+// Generuje nove ovocie na nahodnej volnej pozicii - vyhyba sa hadom, prekazkam a inemu ovociu
 void generate_fruit(Game *game) {
+    if (game->num_snakes == 0) return;
     if (game->num_fruits >= game->num_snakes) return;
     Position pos;
-    bool valid = false;
     int attempts = 0;
-    while (!valid && attempts < 100) {
+    while (attempts < 200) {
         pos.x = rand() % game->width;
         pos.y = rand() % game->height;
-        valid = true;
+        int bad = 0;
         for (int i = 0; i < game->num_snakes; i++) {
             for (int j = 0; j < game->snakes[i].length; j++) {
-                if (game->snakes[i].body[j].x == pos.x && game->snakes[i].body[j].y == pos.y) {
-                    valid = false;
-                    break;
-                }
+                if (game->snakes[i].body[j].x == pos.x && game->snakes[i].body[j].y == pos.y) { bad = 1; break; }
             }
-            if (!valid) break;
+            if (bad) break;
         }
-        if (valid) {
+        if (!bad) {
             for (int i = 0; i < game->num_obstacles; i++) {
-                if (game->obstacles[i].pos.x == pos.x && game->obstacles[i].pos.y == pos.y) {
-                    valid = false;
-                    break;
-                }
+                if (game->obstacles[i].pos.x == pos.x && game->obstacles[i].pos.y == pos.y) { bad = 1; break; }
             }
         }
-        if (valid) {
+        if (!bad) {
             for (int i = 0; i < game->num_fruits; i++) {
-                if (game->fruits[i].pos.x == pos.x && game->fruits[i].pos.y == pos.y) {
-                    valid = false;
-                    break;
-                }
+                if (game->fruits[i].pos.x == pos.x && game->fruits[i].pos.y == pos.y) { bad = 1; break; }
             }
         }
+        if (!bad) break;
         attempts++;
     }
-    if (valid) {
+    if (attempts < 200) {
         game->fruits = realloc(game->fruits, (game->num_fruits + 1) * sizeof(Fruit));
         game->fruits[game->num_fruits].pos = pos;
         game->num_fruits++;
     }
 }
 
+// Posunie hada o jedno policko v jeho aktualnom smere
 void move_snake(Snake *snake) {
     for (int i = snake->length - 1; i > 0; i--) {
-        snake->body[i] = snake->body[i-1];
+        snake->body[i] = snake->body[i - 1];
     }
     switch (snake->direction) {
         case 0: snake->body[0].y--; break;
@@ -166,12 +236,14 @@ void move_snake(Snake *snake) {
     }
 }
 
+// Zmeni smer hada - zakazuje otocenie o 180 stupnov (nemoze ist rovno vzad)
 void change_direction(Snake *snake, int new_direction) {
     if ((snake->direction + 2) % 4 != new_direction) {
         snake->direction = new_direction;
     }
 }
 
+// Prida noveho hada na dane suradnice, vygeneruje ovocie, resetuje empty_since
 void add_snake(Game *game, int start_x, int start_y) {
     game->snakes = realloc(game->snakes, (game->num_snakes + 1) * sizeof(Snake));
     Snake *snake = &game->snakes[game->num_snakes];
@@ -179,11 +251,14 @@ void add_snake(Game *game, int start_x, int start_y) {
     snake->body = malloc(sizeof(Position));
     snake->body[0].x = start_x;
     snake->body[0].y = start_y;
-    snake->direction = 1; // right
+    snake->direction = 1;
+    snake->sleep_until = 0;
     game->num_snakes++;
+    game->empty_since = 0;
     generate_fruit(game);
 }
 
+// Odstrani hada z hry podla indexu - uvolni pamat, posunie zostávajúcich hadov
 void remove_snake(Game *game, int index) {
     if (index < 0 || index >= game->num_snakes) return;
     free(game->snakes[index].body);
@@ -191,16 +266,23 @@ void remove_snake(Game *game, int index) {
         game->snakes[i] = game->snakes[i + 1];
     }
     game->num_snakes--;
-    game->snakes = realloc(game->snakes, game->num_snakes * sizeof(Snake));
+    if (game->num_snakes == 0) {
+        free(game->snakes);
+        game->snakes = NULL;
+    } else {
+        game->snakes = realloc(game->snakes, game->num_snakes * sizeof(Snake));
+    }
     if (game->num_fruits > game->num_snakes) {
-        game->num_fruits--;
+        game->num_fruits = game->num_snakes;
         game->fruits = realloc(game->fruits, game->num_fruits * sizeof(Fruit));
     }
 }
 
+// Serializuje cely stav hry do textoveho retazca - rozmery, hady, ovocie, prekazky, skore, cas, game_over
 char* serialize_game_state(Game *game) {
     char buffer[131072];
-    sprintf(buffer, "%d,%d;", game->width, game->height);
+    buffer[0] = '\0';
+    sprintf(buffer + strlen(buffer), "%d,%d;", game->width, game->height);
     for (int i = 0; i < game->num_snakes; i++) {
         Snake *s = &game->snakes[i];
         sprintf(buffer + strlen(buffer), "s%d,%d", s->length, s->direction);
@@ -220,28 +302,10 @@ char* serialize_game_state(Game *game) {
         sprintf(buffer + strlen(buffer), ",%d", game->scores[i]);
     }
     sprintf(buffer + strlen(buffer), ";");
+    int elapsed = (int)time(NULL) - game->start_time;
+    sprintf(buffer + strlen(buffer), "t%d;", elapsed);
     sprintf(buffer + strlen(buffer), "go%d;", game->game_over ? 1 : 0);
-#ifdef _WIN32
-    return _strdup(buffer);
-#else
+    sprintf(buffer + strlen(buffer), "p%d;", game->paused ? 1 : 0);
     return strdup(buffer);
-#endif
 }
 
-void load_obstacles_from_file(Game *game, const char *filename) {
-    FILE *file = fopen(filename, "r");
-    if (!file) {
-        perror("fopen");
-        return;
-    }
-    int x, y;
-    while (fscanf(file, "%d %d", &x, &y) == 2) {
-        if (game->num_obstacles < 100) {
-            game->obstacles = realloc(game->obstacles, (game->num_obstacles + 1) * sizeof(Obstacle));
-            game->obstacles[game->num_obstacles].pos.x = x;
-            game->obstacles[game->num_obstacles].pos.y = y;
-            game->num_obstacles++;
-        }
-    }
-    fclose(file);
-}
