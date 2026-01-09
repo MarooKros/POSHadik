@@ -4,7 +4,6 @@
 #include <string.h>
 #include <unistd.h>
 
-// Zobrazi aktualny stav hry na terminale - rozmery, cas, ploche a ovladanie
 void display_game(const char *state) {
     system("clear");
     printf("Snake Game\n");
@@ -25,7 +24,6 @@ void display_game(const char *state) {
     free(copy);
 }
 
-// Vypise hlavne menu s moznostami: nova hra, pripojit sa, lokalna hra, pokracovat, koniec
 void show_menu(int paused_available) {
     printf("\n=== POSHadik Menu ===\n");
     printf("1. New Game\n");
@@ -36,7 +34,6 @@ void show_menu(int paused_available) {
     printf("Choose: ");
 }
 
-// Ziska parametre od hraca (sirka, vyska, mod, cas, prekazky) a vytvori novu hru na serveri
 void create_new_game_menu(int sock) {
     int width = 20, height = 20, mode = 0, time_limit = 0, obstacles = 0;
     printf("Enter board width (1-50): ");
@@ -73,7 +70,6 @@ void create_new_game_menu(int sock) {
     if (join_response) free(join_response);
 }
 
-// Spusti lokalnu hru pre 2 hracov na jednom PC - pripoji 2 sockety, jeden ovlada WASD, druhy sipkami
 void run_local_game(const char *server_ip, int port) {
     int sock1 = init_ipc_client(server_ip, port);
     int sock2 = init_ipc_client(server_ip, port);
@@ -144,7 +140,6 @@ void run_local_game(const char *server_ip, int port) {
     close_ipc_connection(sock2);
 }
 
-// Hlavna klientska logika: pripoji sa na server, zobrazi menu, ovlada hru, prijima stavy a odosiela prikazy
 void run_client(const char *server_ip, int port) {
     int sock = init_ipc_client(server_ip, port);
     if (sock == -1) {
@@ -172,11 +167,9 @@ void run_client(const char *server_ip, int port) {
             }
             if (response) free(response);
         } else if (choice == 3) {
-            // local game uses separate sockets
             run_local_game(server_ip, port);
             continue;
         } else if (choice == 4 && paused) {
-            // continue paused game
             send_message(sock, MSG_RESUME);
             paused = 0;
         } else if (choice == 9) {
@@ -187,7 +180,6 @@ void run_client(const char *server_ip, int port) {
             continue;
         }
 
-        // gameplay loop
         printf("Joined game. Use WASD, P pause (back to menu), Q quit.\n");
         while (1) {
             char key;
@@ -213,7 +205,6 @@ void run_client(const char *server_ip, int port) {
     }
 }
 
-// Hlavny vstupny bod klienta - nacita IP a port, spusti klienta
 int main(int argc, char *argv[]) {
     char *server_ip = "127.0.0.1";
     int port = 8080;

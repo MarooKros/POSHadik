@@ -11,7 +11,6 @@
 
 GameSession session;
 
-// Spracuje spravu od klienta - NEW_GAME, JOIN, LEAVE, PAUSE, RESUME, MOVE prikazy
 void process_message(int client_index, const char *message) {
     Client *client = &session.clients[client_index];
     char cmd[256];
@@ -44,14 +43,18 @@ void process_message(int client_index, const char *message) {
         }
         add_snake(&session.game, rand() % session.game.width, rand() % session.game.height);
         client->snake_index = 0;
-        send_message(client->client_socket, RSP_OK);
+        char response[32];
+        sprintf(response, "OK %d", client->snake_index + 1);
+        send_message(client->client_socket, response);
         return;
     } else if (strcmp(token, MSG_JOIN) == 0) {
         if (client->snake_index == -1 && session.game.num_snakes < session.max_clients) {
             add_snake(&session.game, rand() % session.game.width, rand() % session.game.height);
             client->snake_index = session.game.num_snakes - 1;
-            session.game.freeze_until = (int)time(NULL) + 3; // stop movement for 3s after join
-            send_message(client->client_socket, RSP_OK);
+            session.game.freeze_until = (int)time(NULL) + 3;
+            char response[32];
+            sprintf(response, "OK %d", client->snake_index + 1);
+            send_message(client->client_socket, response);
         } else {
             send_message(client->client_socket, RSP_FULL);
         }
@@ -62,14 +65,10 @@ void process_message(int client_index, const char *message) {
         }
         send_message(client->client_socket, RSP_OK);
     } else if (strcmp(message, MSG_PAUSE) == 0) {
-        if (client->snake_index != -1) {
-            session.game.paused = 1;
-        }
+        session.game.paused = 1;
         send_message(client->client_socket, RSP_OK);
     } else if (strcmp(message, MSG_RESUME) == 0) {
-        if (client->snake_index != -1) {
-            session.game.paused = 0;
-        }
+        session.game.paused = 0;
         send_message(client->client_socket, RSP_OK);
     } else if (client->snake_index != -1) {
         Snake *snake = &session.game.snakes[client->snake_index];
@@ -88,7 +87,6 @@ void process_message(int client_index, const char *message) {
     }
 }
 
-// Vlakno pre obsluhu jedneho klienta - prijima spravy, vola process_message, cistenie po odpojeni
 void* handle_client(void* lpParam) {
     int client_socket = (int)(intptr_t)lpParam;
     int client_index = -1;
@@ -114,7 +112,6 @@ void* handle_client(void* lpParam) {
     return NULL;
 }
 
-// Hlavne herné vlakno - kazde 150ms aktualizuje hru a posiela stav vsetkym pripojenym klientom
 void* game_update_thread(void* lpParam) {
     while (1) {
     usleep(150000);
@@ -131,7 +128,6 @@ void* game_update_thread(void* lpParam) {
     return NULL;
 }
 
-// Spusti server na danom porte - inicializuje hru, update vlakno, akceptuje pripojenia klientov
 void run_server(int port) {
     session.num_clients = 0;
     session.max_clients = 10;
@@ -170,7 +166,6 @@ void run_server(int port) {
     free(session.clients);
 }
 
-// Hlavny vstupny bod servera - nacita port z argumentov a spusti server
 int main(int argc, char *argv[]) {
     int port = 8080;
     if (argc > 1) {

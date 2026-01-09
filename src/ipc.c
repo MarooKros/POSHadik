@@ -8,7 +8,6 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 
-// Vytvori TCP server socket na danom porte - bind, listen, vratit file descriptor
 int init_ipc_server(int port) {
     int server_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (server_fd < 0) {
@@ -32,7 +31,6 @@ int init_ipc_server(int port) {
     return server_fd;
 }
 
-// Pripoji sa na server pomocou TCP socketu - vrati socket alebo -1 pri chybe
 int init_ipc_client(const char *server_ip, int port) {
     int sock = socket(AF_INET, SOCK_STREAM, 0);
     if (sock < 0) {
@@ -55,12 +53,10 @@ int init_ipc_client(const char *server_ip, int port) {
     return sock;
 }
 
-// Posle textovu spravu cez socket
 void send_message(int socket, const char *message) {
     send(socket, message, strlen(message), 0);
 }
 
-// Prijme spravu zo socketu (do 1024 bajtov) - vrati duplikat retazca alebo NULL
 char* receive_message(int socket) {
     char buffer[1024];
     int valread = recv(socket, buffer, 1024, 0);
@@ -71,7 +67,6 @@ char* receive_message(int socket) {
     return NULL;
 }
 
-// Zatvori socket spojenie
 void close_ipc_connection(int socket) {
     close(socket);
 }
