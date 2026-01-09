@@ -6,51 +6,51 @@
 
 void display_game(const char *state) {
     system("clear");
-    printf("Snake Game\n");
+    printf("Hra Hadik\n");
     char *copy = strdup(state);
     char *token = strtok(copy, ";");
     int width = 0, height = 0, elapsed = 0;
     if (token) {
         sscanf(token, "%d,%d", &width, &height);
-        printf("Board: %dx%d\n", width, height);
+        printf("Plocha: %dx%d\n", width, height);
     }
     char *find = strstr(state, "t");
     if (find) {
         sscanf(find + 1, "%d", &elapsed);
     }
-    printf("Elapsed: %ds\n", elapsed);
-    printf("State: %s\n", state);
-    printf("Controls: WASD move, P pause, Q quit\n");
+    printf("Uplynulo: %ds\n", elapsed);
+    printf("Stav: %s\n", state);
+    printf("Ovladanie: WASD pohyb, P pauza, Q ukoncit\n");
     free(copy);
 }
 
 void show_menu(int paused_available) {
-    printf("\n=== POSHadik Menu ===\n");
-    printf("1. New Game\n");
-    printf("2. Join Game\n");
-    printf("3. Local Game (2 players, 1 PC)\n");
-    if (paused_available) printf("4. Continue paused game\n");
-    printf("9. Exit\n");
-    printf("Choose: ");
+    printf("\n=== Menu POSHadik ===\n");
+    printf("1. Nova hra\n");
+    printf("2. Pripojit sa\n");
+    printf("3. Lokalna hra (2 hraci, 1 PC)\n");
+    if (paused_available) printf("4. Pokracovat v pozastavenej hre\n");
+    printf("9. Ukoncit\n");
+    printf("Vyber: ");
 }
 
 void create_new_game_menu(int sock) {
     int width = 20, height = 20, mode = 0, time_limit = 0, obstacles = 0;
-    printf("Enter board width (1-50): ");
+    printf("Zadaj sirku plochy (1-50): ");
     scanf("%d", &width); if (width < 1) width = 1; if (width > 50) width = 50;
-    printf("Enter board height (1-50): ");
+    printf("Zadaj vysku plochy (1-50): ");
     scanf("%d", &height); if (height < 1) height = 1; if (height > 50) height = 50;
-    printf("Game mode (0=standard, 1=timed): ");
+    printf("Herny mod (0=standardny, 1=casovany): ");
     scanf("%d", &mode); if (mode != 1) mode = 0;
     if (mode == 1) {
-        printf("Enter time limit (seconds): ");
+        printf("Zadaj casovy limit (sekundy): ");
         scanf("%d", &time_limit);
         if (time_limit < 5) time_limit = 5;
     }
-    printf("Obstacles (0=none, 1=random, 2=from file obstacles.txt): ");
+    printf("Prekazky (0=ziadne, 1=nahodne, 2=zo suboru obstacles.txt): ");
     scanf("%d", &obstacles);
 
-    printf("Starting new game %dx%d mode=%d time=%d obstacles=%d\n", width, height, mode, time_limit, obstacles);
+    printf("Spustam novu hru %dx%d mod=%d cas=%d prekazky=%d\n", width, height, mode, time_limit, obstacles);
     char msg[256];
     sprintf(msg, "%s %d %d %d %d %d", MSG_NEW_GAME, width, height, mode, time_limit, obstacles);
     send_message(sock, msg);
@@ -60,12 +60,12 @@ void create_new_game_menu(int sock) {
     send_message(sock, MSG_JOIN);
     char *join_response = receive_message(sock);
     if (game_created && join_response && strcmp(join_response, RSP_OK) == 0) {
-        printf("New game created. You are player 1.\n");
-        printf("Joined game. Use WASD to move, P to pause/resume, Q to quit.\n");
+        printf("Nova hra vytvorena. Si hrac 1.\n");
+        printf("Pripojeny do hry. Pouzivaj WASD na pohyb, P na pauzu/pokracovanie, Q na ukoncenie.\n");
     } else if (!game_created) {
-        printf("Failed to create new game\n");
+        printf("Nepodarilo sa vytvorit novu hru\n");
     } else {
-        printf("Failed to join game\n");
+        printf("Nepodarilo sa pripojit do hry\n");
     }
     if (join_response) free(join_response);
 }
@@ -75,11 +75,11 @@ void run_local_game(const char *server_ip, int port) {
     int sock2 = init_ipc_client(server_ip, port);
     
     if (sock1 == -1 || sock2 == -1) {
-        fprintf(stderr, "Failed to connect to server\n");
+        fprintf(stderr, "Nepodarilo sa pripojit k serveru\n");
         return;
     }
     
-    printf("Connected to server. Setting up local 2-player game...\n");
+    printf("Pripojeny k serveru. Nastavujem lokalnu hru pre 2 hracov...\n");
     
     int width = 20, height = 20;
     char msg[256];
@@ -96,10 +96,10 @@ void run_local_game(const char *server_ip, int port) {
     response = receive_message(sock2);
     if (response) free(response);
     
-    printf("\nLocal Game Started!\n");
-    printf("Player 1 (Green):  W/A/S/D to move\n");
-    printf("Player 2 (Yellow): UP/DOWN/LEFT/RIGHT to move\n");
-    printf("Press Q to quit\n\n");
+    printf("\nLokalna hra spustena!\n");
+    printf("Hrac 1 (Zeleny):  W/A/S/D na pohyb\n");
+    printf("Hrac 2 (Zluty): SIPKY na pohyb\n");
+    printf("Stlac Q na ukoncenie\n\n");
     
     while (1) {
         {
@@ -143,10 +143,10 @@ void run_local_game(const char *server_ip, int port) {
 void run_client(const char *server_ip, int port) {
     int sock = init_ipc_client(server_ip, port);
     if (sock == -1) {
-        fprintf(stderr, "Failed to connect to server\n");
+        fprintf(stderr, "Nepodarilo sa pripojit k serveru\n");
         return;
     }
-    printf("Connected to server %s:%d\n", server_ip, port);
+    printf("Pripojeny k serveru %s:%d\n", server_ip, port);
 
     int paused = 0;
 
@@ -161,7 +161,7 @@ void run_client(const char *server_ip, int port) {
             send_message(sock, MSG_JOIN);
             char *response = receive_message(sock);
             if (!(response && strcmp(response, RSP_OK) == 0)) {
-                printf("Failed to join game\n");
+                printf("Nepodarilo sa pripojit do hry\n");
                 if (response) free(response);
                 continue;
             }
@@ -176,11 +176,11 @@ void run_client(const char *server_ip, int port) {
             close_ipc_connection(sock);
             return;
         } else {
-            printf("Unknown choice\n");
+            printf("Neznamy vyber\n");
             continue;
         }
 
-        printf("Joined game. Use WASD, P pause (back to menu), Q quit.\n");
+        printf("Pripojeny do hry. Pouzivaj WASD, P pre pauzu (navrat do menu), Q pre ukoncenie.\n");
         while (1) {
             char key;
             scanf(" %c", &key);
