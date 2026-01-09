@@ -11,7 +11,7 @@ BOARD_W, BOARD_H = 20, 20
 class SnakeGUI:
     def __init__(self, master, server_ip, port):
         self.master = master
-        self.master.title("POSHadik GUI Client")
+        self.master.title("Hra hadik")
         self.server_ip = server_ip
         self.port = port
         
@@ -30,7 +30,6 @@ class SnakeGUI:
         self.game_over = False
         self.scores = [0] * 10
         self.start_time = time_module.time()
-        self.sock2 = None
         self.initial_snakes = 1
         self.in_menu = True
         self.winner_shown = False
@@ -40,6 +39,8 @@ class SnakeGUI:
         self.current_obstacles = 0
         self.server_elapsed = 0
         self.paused = False
+        self.player_id = None
+        self.colors = ['lime', 'yellow', 'cyan', 'magenta', 'white']
 
         self.main_frame = tk.Frame(master)
         self.main_frame.pack(fill=tk.BOTH, expand=True)
@@ -54,18 +55,9 @@ class SnakeGUI:
         def on_close():
             self.running = False
             self.send_msg("LEAVE")
-            if self.sock2:
-                try:
-                    self.sock2.sendall("LEAVE".encode())
-                    self.sock2.close()
-                except:
-                    pass
-                self.sock2 = None
             self.master.destroy()
         
         self.master.protocol("WM_DELETE_WINDOW", on_close)
-        
-        self.pending_state = None
 
         threading.Thread(target=self.listen, daemon=True).start()
         
@@ -88,7 +80,7 @@ class SnakeGUI:
         
         dialog.protocol("WM_DELETE_WINDOW", on_close)
         
-        title = tk.Label(dialog, text="POSHadik", font=("Arial", 24, "bold"), bg='black', fg='lime')
+        title = tk.Label(dialog, text="Hra hadik", font=("Arial", 24, "bold"), bg='black', fg='lime')
         title.pack(pady=20)
         
         width_var = tk.StringVar(value="20")
@@ -137,8 +129,8 @@ class SnakeGUI:
             t.sleep(0.3)
             self.send_msg("JOIN")
             self.send_msg("PAUSE")
-            self.paused = True
             self.start_time = time_module.time()
+            
             dialog.destroy()
         
         def join_game():
@@ -190,6 +182,16 @@ class SnakeGUI:
                         self.parse_state(txt)
                         expect_state = False
                         continue
+                    if txt.startswith('OK '):
+                        parts = txt.split()
+                        if len(parts) == 2 and self.player_id is None:
+                            try:
+                                self.player_id = int(parts[1])
+                                color_name = self.colors[(self.player_id - 1) % len(self.colors)]
+                                self.master.title(f"Hrac {self.player_id} ({color_name}) - Hra hadik")
+                            except:
+                                pass
+                        continue
                     if txt.startswith('GAME_STATE'):
                         content = txt[len('GAME_STATE'):]
                         if content:
@@ -199,25 +201,6 @@ class SnakeGUI:
             except Exception as e:
                 break
         self.sock.close()
-    
-    def listen_player2(self):
-        if not self.sock2:
-            return
-        while self.running:
-            try:
-                data = self.sock2.recv(131072)
-                if not data:
-                    break
-                decoded = data.decode()
-                for line in decoded.split('\n'):
-                    if line.strip():
-                        txt = line.strip()
-                        if txt.startswith('OK') or txt.startswith('ERROR') or txt.startswith('GAME_STATE'):
-                            continue
-            except:
-                break
-        if self.sock2:
-            self.sock2.close()
     
     def show_winner_dialog(self):
         scores_live = [max(0, len(snake) - 1) for snake in self.snakes]
@@ -233,15 +216,20 @@ class SnakeGUI:
         def on_close():
             self.running = False
             self.send_msg("LEAVE")
-            if self.sock2:
-                self.sock2.sendall("LEAVE".encode())
-                self.sock2.close()
-                self.sock2 = None
             self.master.destroy()
         
         dialog.protocol("WM_DELETE_WINDOW", on_close)
         
-        tk.Label(dialog, text="Hra skoncila!", font=("Arial", 28, "bold"), fg="red", bg='black').pack(pady=20)
+        alive_snakes = [i for i, snake in enumerate(self.snakes) if len(snake) > 0]
+        total_players = len(self.snakes)
+        
+        if total_players == 1:
+            tk.Label(dialog, text="Prehral si!", font=("Arial", 28, "bold"), fg="red", bg='black').pack(pady=20)
+        elif len(alive_snakes) == 1:
+            winner_idx = alive_snakes[0]
+            tk.Label(dialog, text=f"Hrac {winner_idx + 1} vyhral!", font=("Arial", 28, "bold"), fg="gold", bg='black').pack(pady=20)
+        else:
+            tk.Label(dialog, text="Hra skoncila!", font=("Arial", 28, "bold"), fg="red", bg='black').pack(pady=20)
         
         scores_frame = tk.Frame(dialog, bg='black')
         scores_frame.pack(pady=10)
@@ -256,11 +244,6 @@ class SnakeGUI:
             import time as t
             t.sleep(0.3)
             self.send_msg("JOIN")
-            if self.sock2:
-                try:
-                    self.sock2.sendall("JOIN".encode())
-                except:
-                    pass
             self.start_time = time_module.time()
             dialog.destroy()
         
@@ -269,26 +252,12 @@ class SnakeGUI:
             self.in_menu = True
             self.winner_shown = False
             self.send_msg("LEAVE")
-            if self.sock2:
-                try:
-                    self.sock2.sendall("LEAVE".encode())
-                    self.sock2.close()
-                except:
-                    pass
-                self.sock2 = None
             dialog.destroy()
             self.master.after(100, self.show_menu)
         
         def exit_game():
             self.running = False
             self.send_msg("LEAVE")
-            if self.sock2:
-                try:
-                    self.sock2.sendall("LEAVE".encode())
-                    self.sock2.close()
-                except:
-                    pass
-                self.sock2 = None
             self.master.destroy()
         
         tk.Button(dialog, text="Nova hra", width=20, height=2, font=("Arial", 14), bg='#1a1a1a', fg='lime', command=new_game).pack(pady=10)
@@ -300,7 +269,6 @@ class SnakeGUI:
             return
 
         try:
-            print("Parsing state:\n", state)
             parts = state.split(';')
             if not parts[0]:
                 return
@@ -310,10 +278,7 @@ class SnakeGUI:
             global BOARD_W, BOARD_H
             BOARD_W, BOARD_H = int(wh[0]), int(wh[1])
             self.canvas.config(width=BOARD_W*CELL, height=BOARD_H*CELL)
-            # Resize window to fit new canvas size
-            window_width = max(400, BOARD_W*CELL + 20)
-            window_height = max(400, BOARD_H*CELL + 100)
-            self.master.geometry(f"{window_width}x{window_height}")
+            
             self.snakes = []
             self.fruits = []
             self.obstacles = []
@@ -345,8 +310,11 @@ class SnakeGUI:
                 if part.startswith('s'):
                     vals = list(map(int, part[1:].split(',')))
                     length, direction = vals[0], vals[1]
-                    body = [(vals[i], vals[i+1]) for i in range(2, len(vals), 2)]
-                    self.snakes.append(body)
+                    if length == 0:
+                        self.snakes.append([])
+                    else:
+                        body = [(vals[i], vals[i+1]) for i in range(2, len(vals), 2)]
+                        self.snakes.append(body)
                 elif part.startswith('f'):
                     x, y = map(int, part[1:].split(','))
                     self.fruits.append((x, y))
@@ -361,6 +329,7 @@ class SnakeGUI:
                         return
                 elif part.startswith('p'):
                     self.paused = (part == 'p1')
+            
             self.draw()
         except Exception as e:
             pass
@@ -371,10 +340,11 @@ class SnakeGUI:
             self.canvas.create_rectangle(x*CELL, y*CELL, (x+1)*CELL, (y+1)*CELL, fill='gray')
         for x, y in self.fruits:
             self.canvas.create_oval(x*CELL+5, y*CELL+5, (x+1)*CELL-5, (y+1)*CELL-5, fill='red')
-        colors = ['lime', 'yellow', 'cyan', 'magenta', 'white']
         for idx, snake in enumerate(self.snakes):
+            if not snake:
+                continue
             for i, (x, y) in enumerate(snake):
-                color = colors[idx % len(colors)]
+                color = self.colors[idx % len(self.colors)]
                 self.canvas.create_rectangle(x*CELL, y*CELL, (x+1)*CELL, (y+1)*CELL, fill=color)
         
         elapsed = self.server_elapsed if self.server_elapsed else int(time_module.time() - self.start_time)
@@ -382,10 +352,10 @@ class SnakeGUI:
             time_text = f"Time: {elapsed}/{self.current_time_limit}s"
         else:
             time_text = f"Time: {elapsed}s"
-        # Compute live scores from snake lengths to avoid index mixups
         scores_live = [max(0, len(snake) - 1) for snake in self.snakes]
         score_str = "  |  ".join([f"P{i+1}: {s}" for i, s in enumerate(scores_live)]) if scores_live else "Score: 0"
-        players_text = f"Players: {len(self.snakes)}"
+        alive_count = sum(1 for snake in self.snakes if len(snake) > 0)
+        players_text = f"Players: {alive_count}"
         help_text = "Press 'P' to Resume" if self.paused else "Press 'P' to Pause"
         self.info_label.config(text=f"{players_text}  |  {score_str}  |  {time_text} | {help_text}")
 
@@ -394,10 +364,7 @@ class SnakeGUI:
         if key == 'q':
             self.running = False
             self.send_msg("LEAVE")
-            if self.sock2:
-                self.sock2.sendall("LEAVE".encode())
             self.master.destroy()
-        # Player 1 controls (WASD)
         elif key in ('w',):
             self.send_msg("MOVE_UP")
         elif key in ('s',):
@@ -406,19 +373,6 @@ class SnakeGUI:
             self.send_msg("MOVE_LEFT")
         elif key in ('d',):
             self.send_msg("MOVE_RIGHT")
-        # Player 2 controls (Arrow keys)
-        elif key in ('up',):
-            if self.sock2:
-                self.sock2.sendall("MOVE_UP".encode())
-        elif key in ('down',):
-            if self.sock2:
-                self.sock2.sendall("MOVE_DOWN".encode())
-        elif key in ('left',):
-            if self.sock2:
-                self.sock2.sendall("MOVE_LEFT".encode())
-        elif key in ('right',):
-            if self.sock2:
-                self.sock2.sendall("MOVE_RIGHT".encode())
         elif key == 'p':
             if self.paused:
                 self.send_msg("RESUME")

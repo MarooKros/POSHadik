@@ -7,7 +7,7 @@
 
 typedef struct {
     int client_socket;
-    int snake_index; // -1 if not in game
+    int snake_index;
 } Client;
 
 typedef struct {
