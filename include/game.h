@@ -31,14 +31,15 @@ typedef struct {
     Obstacle *obstacles;
     int num_obstacles;
     bool has_obstacles;
-    int game_mode; // 0 standard, 1 timed
-    int time_limit; // seconds for timed mode
-    int start_time; // game start timestamp
-    int empty_since; // when the last snake disappeared (standard mode)
-    int freeze_until; // global freeze (e.g., 3s after join)
+    int game_mode; 
+    int time_limit; 
+    int start_time;
+    int empty_since; 
+    int freeze_until; 
     int scores[10];
     bool game_over;
-    int paused; 
+    int paused;
+    int creator_socket;
 } Game;
 
 void init_game(Game *game, int width, int height, bool has_obstacles, int game_mode, int time_limit);
@@ -49,6 +50,7 @@ void generate_obstacles(Game *game);
 void move_snake(Snake *snake);
 void change_direction(Snake *snake, int new_direction);
 void add_snake(Game *game, int start_x, int start_y);
+void revive_snake(Game *game, int index, int start_x, int start_y);
 void remove_snake(Game *game, int index);
 char* serialize_game_state(Game *game);
 void load_obstacles_from_file(Game *game, const char *filename);

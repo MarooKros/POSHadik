@@ -8,10 +8,12 @@
 typedef struct {
     int client_socket;
     int snake_index;
+    int game_id;
 } Client;
 
 typedef struct {
-    Game game;
+    Game games[10];
+    int game_count;
     Client *clients;
     int num_clients;
     int max_clients;

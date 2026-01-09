@@ -22,6 +22,7 @@ void init_game(Game *game, int width, int height, bool has_obstacles, int game_m
     game->obstacles = NULL;
     game->game_over = false;
     game->paused = 0;
+    game->creator_socket = -1;
     memset(game->scores, 0, sizeof(game->scores));
     srand((unsigned)time(NULL));
 
@@ -116,7 +117,6 @@ void update_game(Game *game) {
         if (is_collision(game, s)) {
             game->scores[i] = s->length - 1;
             remove_snake(game, i);
-            i--;
             continue;
         }
 
@@ -205,8 +205,12 @@ bool is_collision(Game *game, Snake *snake) {
 }
 
 void generate_fruit(Game *game) {
-    if (game->num_snakes == 0) return;
-    if (game->num_fruits >= game->num_snakes) return;
+    int alive = 0;
+    for (int i = 0; i < game->num_snakes; i++) {
+        if (game->snakes[i].length > 0) alive++;
+    }
+    if (alive == 0) return;
+    if (game->num_fruits >= alive) return;
     Position pos;
     int attempts = 0;
     while (attempts < 200) {
@@ -214,6 +218,7 @@ void generate_fruit(Game *game) {
         pos.y = rand() % game->height;
         int bad = 0;
         for (int i = 0; i < game->num_snakes; i++) {
+            if (game->snakes[i].length == 0) continue;
             for (int j = 0; j < game->snakes[i].length; j++) {
                 if (game->snakes[i].body[j].x == pos.x && game->snakes[i].body[j].y == pos.y) { bad = 1; break; }
             }
@@ -268,6 +273,19 @@ void add_snake(Game *game, int start_x, int start_y) {
     snake->sleep_until = 0;
     game->num_snakes++;
     game->empty_since = 0;
+    generate_fruit(game);
+}
+
+void revive_snake(Game *game, int index, int start_x, int start_y) {
+    if (index < 0 || index >= game->num_snakes) return;
+    Snake *snake = &game->snakes[index];
+    snake->length = 1;
+    snake->body = malloc(sizeof(Position));
+    snake->body[0].x = start_x;
+    snake->body[0].y = start_y;
+    snake->direction = 1;
+    snake->sleep_until = 0;
+    game->scores[index] = 0;
     generate_fruit(game);
 }
 
