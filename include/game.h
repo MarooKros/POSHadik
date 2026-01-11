@@ -3,25 +3,31 @@
 
 #include <stdbool.h>
 
+// Pozicia v hre (x, y suradnice)
 typedef struct {
     int x, y;
 } Position;
 
+// Had - telo, smer, stav 
 typedef struct {
     Position *body;
     int length;
-    int direction; // 0 up, 1 right, 2 down, 3 left
-    int sleep_until; // timestamp when snake can move again
+    int direction;
+    int sleep_until; 
+    bool paused; 
 } Snake;
 
+// Ovocie na mape
 typedef struct {
     Position pos;
 } Fruit;
 
+// Prekazka na mape
 typedef struct {
     Position pos;
 } Obstacle;
 
+// Hlavna struktura hry
 typedef struct {
     int width, height;
     Snake *snakes;
@@ -35,7 +41,7 @@ typedef struct {
     int time_limit; 
     int start_time;
     int empty_since; 
-    int freeze_until; 
+    int freeze_until;
     int scores[10];
     bool game_over;
     int paused;
