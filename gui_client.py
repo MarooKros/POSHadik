@@ -1,3 +1,6 @@
+# GUI klient pre hru hadik - hlavny uzivatelsky interface
+# Pouziva tkinter pre graficku cast a socket komunikaciu so serverom
+
 import sys
 import socket
 import threading
@@ -8,7 +11,9 @@ import time as time_module
 CELL = 30
 BOARD_W, BOARD_H = 20, 20
 
+# Hlavna trieda GUI klienta
 class SnakeGUI:
+    # Inicializacia GUI - pripojenie na server, nastavenie okna a canvas
     def __init__(self, master, server_ip, port):
         self.master = master
         self.master.title("Hra hadik")
@@ -66,6 +71,7 @@ class SnakeGUI:
         
         self.show_menu()
     
+    # Zobrazi hlavne menu s moznostami vytvorit hru, pripojit sa, pokracovat alebo ukoncit
     def show_menu(self):
         self.in_menu = True
         self.winner_shown = False
@@ -111,10 +117,24 @@ class SnakeGUI:
         tk.Radiobutton(form, text="Zo suboru", variable=obstacles_var, value=2, bg='black', fg='white', selectcolor='black').grid(row=3, column=3)
 
         def new_game():
+            if self.game_id is not None:
+                self.send_msg("LEAVE")
+                import time as t
+                t.sleep(0.1)
+            
+            # Reset vsetkych stavov pred vytvorenim novej hry
             self.game_over = False
             self.in_menu = False
             self.winner_shown = False
             self.player_dead = False
+            self.paused = False
+            self.player_id = None
+            self.game_id = None
+            self.snakes = []
+            self.fruits = []
+            self.obstacles = []
+            self.scores = [0] * 10
+            
             try:
                 w = int(width_var.get())
                 h = int(height_var.get())
@@ -132,7 +152,6 @@ class SnakeGUI:
             import time as t
             t.sleep(0.3)
             self.send_msg("JOIN")
-            self.send_msg("PAUSE")
             self.start_time = time_module.time()
             
             dialog.destroy()
@@ -141,6 +160,12 @@ class SnakeGUI:
             self.menu_dialog = dialog
             self.send_msg("LIST_GAMES")
             self.waiting_for_games = True
+        
+        def resume_game():
+            dialog.destroy()
+            self.in_menu = False
+            self.send_msg("RESUME")
+            self.paused = False
             
         def exit_game():
             self.running = False
@@ -155,14 +180,20 @@ class SnakeGUI:
         
         tk.Button(btn_frame, text="Nova hra", width=btn_width, height=btn_height, font=("Arial", 14), bg='#1a1a1a', fg='lime', command=new_game).pack(pady=12)
         tk.Button(btn_frame, text="Pripojit sa", width=btn_width, height=btn_height, font=("Arial", 14), bg='#1a1a1a', fg='lime', command=join_game).pack(pady=12)
+        
+        if self.paused and self.game_id is not None and self.initial_snakes == 1:
+            tk.Button(btn_frame, text="Pokracovat v hre", width=btn_width, height=btn_height, font=("Arial", 14), bg='#1a1a1a', fg='cyan', command=resume_game).pack(pady=12)
+        
         tk.Button(btn_frame, text="Ukoncit", width=btn_width, height=3, font=("Arial", 14), bg='#1a1a1a', fg='red', command=exit_game).pack(pady=12)
 
+    # Posle spravu serveru cez socket
     def send_msg(self, msg):
         try:
             self.sock.sendall(msg.encode())
         except:
             pass
 
+    # Thread ktory pocuva spravy zo servera (GAME_STATE, OK, ERROR, GAMES)
     def listen(self):
         expect_state = False
         while self.running:
@@ -181,7 +212,7 @@ class SnakeGUI:
                         continue
                     if txt.startswith('OK '):
                         parts = txt.split()
-                        if len(parts) >= 2 and self.player_id is None:
+                        if len(parts) >= 2:
                             try:
                                 self.player_id = int(parts[1])
                                 if len(parts) == 3:
@@ -213,6 +244,7 @@ class SnakeGUI:
                 break
         self.sock.close()
     
+    # Zobrazi dialog so zoznamom dostupnych hier na pripojenie
     def show_game_list(self, games_msg):
         parts = games_msg.split()[1:]
         if not parts:
@@ -247,10 +279,16 @@ class SnakeGUI:
                 
                 def make_join(gid):
                     def join():
+                        if self.game_id is not None and self.game_id != gid:
+                            self.send_msg("LEAVE")
+                            import time as t
+                            t.sleep(0.1)
+                        
                         self.game_over = False
                         self.in_menu = False
                         self.winner_shown = False
                         self.player_dead = False
+                        self.paused = False
                         self.current_mode = 0
                         self.current_time_limit = 0
                         self.current_obstacles = 0
@@ -272,6 +310,7 @@ class SnakeGUI:
         tk.Button(dialog, text="Zrusit", width=20, height=2, font=("Arial", 12), 
                  bg='#1a1a1a', fg='red', command=on_close).pack(pady=10)
     
+    # Zobrazi dialog po skonceni hry s vysledkami a moznostami (nova hra, menu, ukoncit)
     def show_winner_dialog(self):
         scores_live = [max(0, len(snake) - 1) for snake in self.snakes]
         final_scores = [s for s in self.scores if s > 0] if any(self.scores) else scores_live
@@ -307,9 +346,23 @@ class SnakeGUI:
             tk.Label(scores_frame, text=f"Hrac {i+1}: {score}", font=("Arial", 18), fg="white", bg='black').pack(pady=5)
         
         def new_game():
+            if self.game_id is not None:
+                self.send_msg("LEAVE")
+                import time as t
+                t.sleep(0.1)
+            
+            # Reset vsetkych stavov pred vytvorenim novej hry
             self.game_over = False
             self.in_menu = False
             self.winner_shown = False
+            self.player_dead = False
+            self.player_id = None
+            self.game_id = None
+            self.snakes = []
+            self.fruits = []
+            self.obstacles = []
+            self.scores = [0] * 10
+            
             self.send_msg(f"NEW_GAME {BOARD_W} {BOARD_H} {self.current_mode} {self.current_time_limit} {self.current_obstacles}")
             import time as t
             t.sleep(0.3)
@@ -334,6 +387,7 @@ class SnakeGUI:
         tk.Button(dialog, text="Navrat do menu", width=20, height=2, font=("Arial", 14), bg='#1a1a1a', fg='yellow', command=back_to_menu).pack(pady=10)
         tk.Button(dialog, text="Ukoncit", width=20, height=2, font=("Arial", 14), bg='#1a1a1a', fg='red', command=exit_game).pack(pady=10)
 
+    # Parsuje stav hry zo servera (rozmery, hady, ovocie, prekazky, skore)
     def parse_state(self, state):
         if self.game_over or self.in_menu:
             return
@@ -416,6 +470,7 @@ class SnakeGUI:
         except Exception as e:
             pass
 
+    # Vykresli aktualny stav hry na canvas (hady, ovocie, prekazky, info panel)
     def draw(self):
         self.canvas.delete('all')
         for x, y in self.obstacles:
@@ -441,6 +496,7 @@ class SnakeGUI:
         help_text = "Stlac 'P' pre pokracovanie" if self.paused else "Stlac 'P' pre pauzu"
         self.info_label.config(text=f"{players_text}  |  {score_str}  |  {time_text} | {help_text}")
 
+    # Spracuje stlacenie klavesy (W/A/S/D pohyb, P pauza, Q ukoncenie)
     def on_key(self, event):
         key = event.keysym.lower()
         if key == 'q':
@@ -456,13 +512,13 @@ class SnakeGUI:
         elif key in ('d',):
             self.send_msg("MOVE_RIGHT")
         elif key == 'p':
-            if self.paused:
-                self.send_msg("RESUME")
-                self.paused = False
-            else:
+            if not self.in_menu and self.initial_snakes == 1:
                 self.send_msg("PAUSE")
                 self.paused = True
+                self.in_menu = True
+                self.master.after(100, self.show_menu)
 
+# Hlavna cast - spusti GUI klienta
 if __name__ == "__main__":
     if len(sys.argv) < 3:
         print("Pouzitie: python gui_client.py <server_ip> <port>")
