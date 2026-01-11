@@ -12,6 +12,9 @@
 GameSession session;
 pthread_mutex_t g_game_lock[10];
 
+// Forward deklaracia
+void cleanup_server();
+
 // Spracuje spravu od klienta (LIST_GAMES, NEW_GAME, JOIN, LEAVE, PAUSE, RESUME, pohyby)
 void process_message(int client_index, const char *message) {
     Client *client = &session.clients[client_index];
@@ -236,8 +239,49 @@ void* handle_client(void* lpParam) {
         remove_snake(&session.games[session.clients[client_index].game_id], session.clients[client_index].snake_index);
         pthread_mutex_unlock(&g_game_lock[session.clients[client_index].game_id]);
     }
+    
+    // Odstrani klienta zo zoznamu
+    session.num_clients--;
+    printf("Klient sa odpojil. Pocet klientov: %d\n", session.num_clients);
+    
+    // Ak nie su ziadni klienti, ukonci server
+    if (session.num_clients == 0) {
+        printf("Vsetci klienti sa odpojili. Server sa ukoncuje.\n");
+        close_ipc_connection(client_socket);
+        cleanup_server();
+        exit(0);
+    }
+    
     close_ipc_connection(client_socket);
     return NULL;
+}
+
+//Premaz pamat
+void cleanup_server() {
+    // Uvolni hry
+    for (int i = 0; i < session.game_count; i++) {
+        Game *game = &session.games[i];
+        if (game->snakes) {
+            for (int j = 0; j < game->num_snakes; j++) {
+                if (game->snakes[j].body) {
+                    free(game->snakes[j].body);
+                }
+            }
+            free(game->snakes);
+        }
+        if (game->fruits) free(game->fruits);
+        if (game->obstacles) free(game->obstacles);
+    }
+    
+    // Uvolni klientov
+    if (session.clients) {
+        free(session.clients);
+    }
+    
+    // Znic mutexy
+    for (int i = 0; i < 10; i++) {
+        pthread_mutex_destroy(&g_game_lock[i]);
+    }
 }
 
 // Kontroluje ci existuje aspon jedna aktivna hra
